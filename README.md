@@ -1,288 +1,268 @@
-# GALAK: Game Katalog & Admin Log
+# 🎮🕹️👾 GALAK (Game Asyik Login Akses Katalog)
 
-Sistem web katalog game modern berbasis **PHP** & **MySQL** yang menampilkan, mengelola, dan memantau data game serta kategori secara dinamis. Proyek ini menonjolkan integrasi **stored procedure**, **function**, **trigger**, dan **transaction** di database, serta fitur backup otomatis untuk menjaga keamanan data.
+Proyek ini adalah sistem berbasis web yang dibangun menggunakan PHP Native dan MySQL. Tujuan dari sistem ini adalah untuk menyediakan katalog game yang bisa diakses setelah gamers melakukan login. Sistem ini dilengkapi fitur seperti: manajemen data game, pencatatan log otomatis, validasi data sebelum masuk ke database, dan cadangan (backup) data secara otomatis.
 
----
-
-## 📌 Detail Konsep & Tujuan
-GALAK adalah aplikasi katalog game dengan fitur admin log, dibangun untuk mendemonstrasikan implementasi:
-- **Stored Procedure** (otomasi proses penting)
-- **Stored Function** (pengambilan data terpusat)
-- **Trigger** (logging & validasi otomatis)
-- **Transaction** (atomicity multi-tabel)
-- **Backup Otomatis** (keamanan data)
-
-Semua logika bisnis utama dipusatkan di database, sehingga konsistensi, reliabilitas, dan integritas data terjaga, sesuai prinsip Pemrosesan Data Terdistribusi.
+Sistem GALAK memanfaatkan fitur-fitur penting dalam database seperti **procedure**, **trigger**, **transaksi**, **function**, dan **backup terjadwal**, yang semuanya bekerja untuk menjaga keandalan dan konsistensi data.
 
 ---
 
-## ⚠️ Disclaimer
-Penerapan procedure, function, trigger, dan transaction pada GALAK disesuaikan dengan kebutuhan sistem katalog game. Implementasi pada sistem lain dapat berbeda sesuai arsitektur dan kebutuhan.
+## 📌 Konsep Umum
+
+Sistem GALAK dibangun dengan pendekatan **Model-View-Controller (MVC)**, yang memisahkan bagian tampilan (view), logika pemrosesan (controller), dan akses ke database (model). Semua proses penting seperti menambah game, memperbarui deskripsi, menghitung jumlah game berdasarkan kategori dilakukan langsung melalui procedure di dalam database. Ini menjaga agar semua aturan berjalan dengan aman dan seragam, dari mana data dimasukkan (misalnya dari admin atau gamers).
 
 ---
 
-## 🧠 Stored Procedure
-Stored procedure bertindak sebagai SOP database untuk operasi penting:
-- `AddNewGame(p_title, p_genre, p_thumbnail, p_description)`
-- `UpdateGameDescription(p_game_id, p_new_description)`
-- `GetGameCountByGenre(genre_param, OUT game_count)`
+## 📌 Konsep Utama
 
-**Implementasi di sistem:**
-- `admin_game_form.php` (tambah game: panggil `AddNewGame`, edit deskripsi: panggil `UpdateGameDescription`)
-- `hitung_game.php`, `katalog.php` (statistik genre: panggil `GetGameCountByGenre`)
+Model: Berisi logika untuk mengakses dan mengelola data dari database.
 
-**Contoh kode:**
-```php
-// Tambah game baru
-$stmt = $conn->prepare("CALL AddNewGame(?, ?, ?, ?)");
-$stmt->bind_param('ssss', $title, $genre, $thumbnail, $description);
-$stmt->execute();
-```
+View: Tampilan web yang dilihat oleh pengguna.
+
+Controller: Penghubung antara view dan model.
 
 ---
 
-## 🚨 Trigger
-Trigger digunakan untuk logging otomatis dan validasi data penting:
-- `after_game_insert` & `after_game_delete` (log admin saat tambah/hapus game)
-- `insert_kategori` & `update_kategori` (log admin saat tambah/edit kategori)
+## 📄 Stored Procedure
 
-**Implementasi di sistem:**
-- `admin_game_form.php`, `admin_game_list.php` (otomatis aktif saat insert/delete game)
-- `admin_kategori_form.php` (otomatis aktif saat insert/update kategori)
-- Semua log dapat dilihat di `admin_log_view.php`
+**Stored Procedure** adalah semacam perintah yang disimpan langsung di dalam database dan digunakan berulang-ulang untuk tugas tertentu. Di sistem GALAK, prosedur ini digunakan agar semua proses berjalan dengan urutan dan aturan yang jelas. Beberapa contoh prosedur yang digunakan:
 
-**Contoh kode trigger:**
+### 🎮 `AddNewGame`
+
+Menambahkan data game baru.
+Digunakan di: `admin_game_form.php`
+
 ```sql
-CREATE TRIGGER after_game_insert AFTER INSERT ON games FOR EACH ROW BEGIN
-  INSERT INTO admin_log (admin_id, activity)
-  VALUES (@admin_id, CONCAT('Menambahkan game baru: ', NEW.title));
-END
-```
-
----
-
-## 🔄 Transaction
-Transaksi memastikan operasi multi-tabel berjalan atomik. Jika salah satu langkah gagal, seluruh proses dibatalkan (rollback).
-
-**Implementasi di sistem:**
-- `admin_game_form.php` (insert kategori baru + game dalam satu transaksi)
-- `admin_kategori_form.php` (insert/update kategori)
-
-**Contoh kode:**
-```php
-$conn->begin_transaction();
-// Insert kategori jika baru
-// Insert game
-$conn->commit();
-// Jika gagal: $conn->rollback();
-```
-
----
-
-## 📺 Stored Function
-Stored function digunakan untuk mengambil data spesifik secara efisien dan konsisten:
-- `GetGameCountByKategoriId(kategori_id)` (jumlah game per kategori)
-- `GetKategoriNameByGameId(game_id)` (nama kategori dari id game)
-- `IsUserAdmin(user_id)` (cek role admin)
-
-**Implementasi di sistem:**
-- `admin_kategori_list.php`, `hitung_game.php`, `katalog.php` (jumlah game per kategori)
-- `game_detail.php` (tampilkan nama kategori)
-- `login.php`, `admin_dashboard.php` (validasi role admin setelah login)
-
-**Contoh kode:**
-```php
-$stmt = $conn->prepare('SELECT IsUserAdmin(?) AS is_admin');
-$stmt->bind_param('i', $user_id);
-$stmt->execute();
-```
-
----
-
-## 🗂️ Struktur Fitur & Highlight Implementasi
-| File | Fitur | Implementasi Ketentuan No.1 |
-|------|-------|----------------------------|
-| `admin_dashboard.php` | Ringkasan total game & kategori, validasi admin | Function: `IsUserAdmin` |
-| `admin_game_form.php` | Tambah/edit game | Procedure: `AddNewGame`, `UpdateGameDescription`, Transaction, Trigger |
-| `admin_game_list.php` | Daftar game, filter kategori, statistik genre | Procedure, Function, Trigger |
-| `admin_kategori_list.php` | Daftar kategori, jumlah game per kategori | Function, Trigger |
-| `admin_kategori_form.php` | Tambah/edit kategori | Trigger, Transaction |
-| `admin_log_view.php` | Tabel log admin | Trigger |
-| `game_detail.php` | Detail game, badge kategori | Function: `GetKategoriNameByGameId` |
-| `katalog.php` | Katalog publik, filter kategori, statistik | Function, Procedure |
-| `login.php` | Login user/admin, cek role | Function: `IsUserAdmin` |
-| `hitung_game.php` | Fungsi PHP wrapper ke procedure/function | Procedure, Function |
-
----
-
-## 💻 Contoh Kode Implementasi Ketentuan No.1 di Sistem GALAK (Lengkap dengan Penjelasan)
-
-### 1. Stored Procedure
-#### Pemanggilan AddNewGame (admin_game_form.php)
-```php
-// Menambah game baru ke database secara konsisten dan aman menggunakan procedure di MySQL.
 $sql = "CALL AddNewGame(?, ?, ?, ?)";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param('ssss', $title, $genre, $thumbnail_to_save, $description);
 $stmt->execute();
-// Dengan procedure, logika insert terpusat di database, sehingga data lebih terjaga dan efisien.
 ```
-#### Pemanggilan UpdateGameDescription (admin_game_form.php)
-```php
-// Mengupdate deskripsi game secara langsung di database via procedure.
-$sql = "CALL UpdateGameDescription(?, ?)";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param('is', $posted_id, $description);
-$stmt->execute();
-// Memastikan perubahan hanya terjadi jika data valid, dan mudah di-maintain.
-```
-#### Statistik Genre (hitung_game.php, katalog.php)
-```php
-// Menghitung jumlah game per genre dengan procedure agar hasil selalu akurat dan konsisten.
+
+### 🎮 `GetGameCountByGenre`
+
+Menghitung jumlah game per genre.
+Digunakan di: `hitung_game.php`, `katalog.php`
+
+```sql
 $sql_call = "CALL GetGameCountByGenre(?, @game_count)";
 $stmt = $conn->prepare($sql_call);
 $stmt->bind_param("s", $genre);
 $stmt->execute();
-$stmt->close();
-$result = $conn->query("SELECT @game_count as count");
-// Cocok untuk statistik real-time tanpa query manual berulang.
 ```
 
-### 2. Stored Function
-#### Cek Role Admin (login.php, admin_dashboard.php)
-```php
-// Mengecek apakah user adalah admin menggunakan function di MySQL.
-$role_stmt = $conn->prepare('SELECT IsUserAdmin(?) AS is_admin');
-$role_stmt->bind_param('i', $user['id']);
-$role_stmt->execute();
-$role_result = $role_stmt->get_result();
-$is_admin = $role_result->fetch_assoc()['is_admin'];
-// Function ini menjaga keamanan akses fitur admin, hanya user dengan role admin yang bisa masuk.
-```
-#### Jumlah Game per Kategori (admin_kategori_list.php, hitung_game.php, katalog.php)
-```php
-// Mengambil jumlah game dalam satu kategori dengan function di database.
-$sql = "SELECT GetGameCountByKategoriId(?) AS jumlah";
+### 🎮 `UpdateGameDescription`
+
+Memperbarui deskripsi game berdasarkan ID.
+Digunakan di: `admin_game_form.php`
+
+```sql
+$sql = "CALL UpdateGameDescription(?, ?)";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $kategori_id);
+$stmt->bind_param('is', $posted_id, $description);
+$stmt->execute();
+```
+
+---
+
+## 🧠 Function
+
+**Function** digunakan untuk mengambil informasi dari database, tanpa mengubah apapun. Di GALAK, fungsi ini digunakan untuk menghitung jumlah game dalam kategori tertentu.
+
+### 🕹️ `GetGameCountByKategoriId`
+Digunakan untuk menghitung jumlah game pada kategori tertentu.
+Digunakan di: `hitung_game.php`, `admin_kategori_list.php`, `katalog.php`
+
+- `hitung_game.php`
+    ```php
+    function get_game_count_by_kategori_id($kategori_id) {
+        global $conn;
+        $sql = "SELECT GetGameCountByKategoriId(?) AS jumlah";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $kategori_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $jumlah = 0;
+        if ($result && $row = $result->fetch_assoc()) {
+            $jumlah = $row['jumlah'];
+        }
+        $stmt->close();
+        return $jumlah;
+    }
+    ```
+- `admin_kategori_list.php`
+    ```php
+    include_once 'hitung_game.php';
+    <td><?= get_game_count_by_kategori_id($row['id']) ?></td>
+    ```
+- `katalog.php`
+    ```php
+    include_once 'hitung_game.php';
+    foreach ($kategori_list as $kategori) {
+        $jumlah = get_game_count_by_kategori_id($kategori['id']);
+    }
+    ```
+
+### 🕹️ `GetGameTitleById`
+
+Dapat digunakan untuk mengambil judul game berdasarkan ID-nya secara langsung dari database, jika dibutuhkan di halaman detail atau log.
+
+```php
+$stmt = $conn->prepare("SELECT GetGameTitleById(?) AS title");
+$stmt->bind_param('i', $game_id);
 $stmt->execute();
 $result = $stmt->get_result();
-$jumlah = $result->fetch_assoc()['jumlah'];
-// Memudahkan pembuatan statistik kategori tanpa query rumit di PHP.
+$title = $result->fetch_assoc()['title'];
 ```
-#### Nama Kategori dari Game (game_detail.php)
-```php
-// Mendapatkan nama kategori dari id game secara langsung dari database.
+
+### 🕹️ `GetKategoriNameByGameId`
+
+Mengambil nama kategori dari game tertentu.
+Digunakan di: `game_detail.php`
+
+```sql
 $stmt_kat = $conn->prepare("SELECT GetKategoriNameByGameId(?) AS kategori");
 $stmt_kat->bind_param('i', $game_id);
 $stmt_kat->execute();
-$result_kat = $stmt_kat->get_result();
-$kategori_func = $result_kat->fetch_assoc()['kategori'];
-// Membuat tampilan detail game lebih informatif dan dinamis.
 ```
 
-### 3. Trigger
-#### Trigger Log Admin Otomatis (database_galak.sql)
+### 🕹️ `IsUserAdmin`
+
+Mengecek apakah user adalah admin.
+Digunakan di: `login.php`, `admin_dashboard.php`
+
 ```sql
--- Trigger ini otomatis mencatat aktivitas admin setiap kali ada game ditambah/hapus atau kategori diubah.
-CREATE TRIGGER after_game_insert AFTER INSERT ON games FOR EACH ROW BEGIN
-  INSERT INTO admin_log (admin_id, activity)
-  VALUES (@admin_id, CONCAT('Menambahkan game baru: ', NEW.title));
-END;
+$role_stmt = $conn->prepare('SELECT IsUserAdmin(?) AS is_admin');
+$role_stmt->bind_param('i', $user['id']);
+$role_stmt->execute();
+```
+Manfaat:
 
-CREATE TRIGGER after_game_delete AFTER DELETE ON games FOR EACH ROW BEGIN
-  INSERT INTO admin_log (admin_id, activity)
-  VALUES (@admin_id, CONCAT('Menghapus game: ', OLD.title));
-END;
+* Tidak perlu mengulang logika perhitungan di banyak tempat.
+* Memastikan hasil perhitungan **konsisten** dan akurat.
+---
 
-CREATE TRIGGER insert_kategori AFTER INSERT ON kategori FOR EACH ROW BEGIN
-  INSERT INTO admin_log (admin_id, activity)
-  VALUES (@admin_id, CONCAT('Menambahkan kategori: ', NEW.name));
-END;
--- Dengan trigger, semua perubahan penting otomatis tercatat tanpa perlu kode tambahan di aplikasi.
+## 🚨 Trigger
+
+Trigger adalah aturan yang langsung dijalankan oleh database **secara otomatis** saat ada data baru dimasukkan atau diubah. Di GALAK, trigger dipakai untuk mencatat log setiap kali ada game ditambahkan atau diperbarui.
+
+### 👾 `after_game_delete`
+
+(AFTER DELETE pada tabel games)
+Dicatat saat game dihapus.
+Digunakan di: `admin_game_list.php`
+
+```sql
+$stmt_delete = $conn->prepare("DELETE FROM games WHERE id = ?");
+$stmt_delete->bind_param('i', $id_hapus);
+$stmt_delete->execute();
 ```
 
-### 4. Transaction
-#### Insert Kategori + Game (admin_game_form.php)
+### 👾 `after_game_insert`
+(AFTER INSERT pada tabel games)
+Dicatat saat game ditambahkan.
+Digunakan di: `admin_game_form.php`
 ```php
-// Transaksi ini memastikan jika salah satu proses gagal (insert kategori/game), maka semua perubahan dibatalkan.
-$conn->begin_transaction();
+$sql = "CALL AddNewGame(?, ?, ?, ?)";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param('ssss', $title, $genre, $thumbnail_to_save, $description);
+$stmt->execute();
+```
+
+### 👾 `insert_kategori`
+(AFTER INSERT pada tabel kategori)
+Dicatat saat kategori ditambah.
+Digunakan di: `admin_kategori_form.php`
+```php
+$sql = "INSERT INTO kategori (name, description) VALUES (?, ?)";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param('ss', $name, $description);
+$stmt->execute();
+```
+
+### 👾 `update_kategori`
+(AFTER UPDATE pada tabel kategori)
+Dicatat saat kategori diubah.
+Digunakan di: `admin_kategori_form.php`
+```php
+$sql = "UPDATE kategori SET name = ?, description = ? WHERE id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param('ssi', $name, $description, $posted_id);
+$stmt->execute();
+```
+
+**Manfaatnya:**
+
+* Menjaga transparansi aktivitas sistem.
+* Admin bisa melihat siapa yang menambah atau mengubah data dan kapan waktunya.
+* Mencegah data masuk tanpa catatan.
+
+---
+
+## 🔁 Transaction (Transaksi Aman)
+
+Transaksi di sini berarti **sekumpulan perintah yang dijalankan bersama-sama**, dan semuanya harus berhasil agar perubahan data disimpan. Kalau ada satu saja yang gagal, maka seluruh proses dibatalkan.
+
+### Contoh: Tambah Game
+Contoh penggunaan transaksi saat menambahkan game:
+
+```php
 try {
-    // Insert kategori jika belum ada
-    $kategori_stmt = $conn->prepare("SELECT id FROM kategori WHERE name = ? LIMIT 1");
-    $kategori_stmt->bind_param('s', $genre);
-    $kategori_stmt->execute();
-    $kategori_result = $kategori_stmt->get_result();
-    if ($kategori_result->num_rows === 0) {
-        $desc_default = 'Kategori otomatis dari form game';
-        $insert_kat = $conn->prepare("INSERT INTO kategori (name, description) VALUES (?, ?)");
-        $insert_kat->bind_param('ss', $genre, $desc_default);
-        $insert_kat->execute();
-    }
-    // Insert game
-    $sql = "CALL AddNewGame(?, ?, ?, ?)";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param('ssss', $title, $genre, $thumbnail_to_save, $description);
-    $stmt->execute();
-    $conn->commit();
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare("CALL AddNewGame(?, ?, ?, ?)");
+    $stmt->execute([$judul, $genre, $thumbnail, $deskripsi]);
+    $pdo->commit();
 } catch (Exception $e) {
-    $conn->rollback();
+    $pdo->rollBack();
+    echo "Gagal menambahkan game: " . $e->getMessage();
 }
-// Transaction menjaga data tetap konsisten, tidak ada data setengah jalan jika terjadi error.
 ```
 
-### 5. Backup Database + Task Scheduler
-#### Script Backup Otomatis (Windows)
+### Transaksi memastikan bahwa seluruh proses berhasil sebelum data disimpan.
+
+Manfaat transaksi:
+
+* **Data tetap utuh** dan tidak setengah jadi.
+* **Tidak ada data aneh** misalnya game sudah masuk tapi log-nya tidak ada.
+* **Lebih aman**, terutama jika lebih dari satu orang sedang menggunakan sistem secara bersamaan.
+
+---
+
+## 🔄 Backup Database + Task Scheduler
+
+Sistem GALAK memiliki mekanisme backup otomatis menggunakan **`mysqldump`** yang dijalankan melalui file `backup.php`. File backup akan disimpan dengan nama file berdasarkan waktu saat backup dilakukan.
+
+### Contoh File Backup:
+
+`backup_galak_2025-06-14_09-30-00.sql`
+
 ```bat
-@echo off
-set DATE=%date:~10,4%-%date:~4,2%-%date:~7,2%_%time:~0,2%%time:~3,2%%time:~6,2%
-mysqldump -u root database_galak > D:\AppData\Laragon\www\GALAK\storage\backups\galak_backup_%DATE%.sql
-:: Script ini akan membuat file backup database otomatis dengan nama sesuai tanggal dan jam.
-:: Jalankan script ini dengan Task Scheduler Windows agar backup berjalan rutin tanpa perlu manual.
-```
-- Dengan backup otomatis, data tetap aman walau terjadi error, kehilangan data, atau kerusakan server.
+    @echo off
+    set DATE=%date:~10,4%-%date:~4,2%-%date:~7,2%_%time:~0,2%%time:~3,2%%time:~6,2%
+    mysqldump -u root database_galak > D:\AppData\Laragon\www\GALAK\storage\backups\backup_galak_%DATE%.sql
+    ```
+
+Backup ini **dijalankan otomatis melalui penjadwalan di Task Scheduler** Windows, agar setiap hari data tersimpan aman meskipun terjadi masalah seperti listrik mati atau sistem rusak.
 
 ---
 
-## 🛡️ Backup Otomatis
-Backup database dilakukan secara berkala menggunakan `mysqldump` dan task scheduler (Windows Task Scheduler atau cron). File backup disimpan di folder `storage/backups` dengan format timestamp.
+## 🌐 Relevansi dengan Pemrosesan Data Terdistribusi
 
-**Contoh script backup:**
-```bat
-@echo off
-set DATE=%date:~10,4%-%date:~4,2%-%date:~7,2%_%time:~0,2%%time:~3,2%%time:~6,2%
-mysqldump -u root database_galak > D:\AppData\Laragon\www\GALAK\storage\backups\galak_backup_%DATE%.sql
-```
+Sistem GALAK menunjukkan penerapan prinsip-prinsip **pemrosesan data terdistribusi**, yaitu:
 
----
+### 1. Konsistensi
 
-## 🧩 Relevansi dengan Pemrosesan Data Terdistribusi
-- **Konsistensi:** Semua operasi penting (insert, update, delete) dijalankan via procedure/function/trigger di database.
-- **Reliabilitas:** Trigger dan transaction memastikan data tetap valid meski ada error.
-- **Integritas:** Logika bisnis utama tersentral di database, sehingga tetap konsisten walau diakses dari banyak sumber (web, API, dsb).
+* Semua proses penting dilakukan melalui procedure dan function, agar hasilnya tetap seragam.
 
----
+### 2. Keandalan (Reliabilitas)
 
-## 💡 Cara Menjalankan
-1. Import `database_galak.sql` ke MySQL.
-2. Pastikan folder `uploads/` dan `storage/backups/` ada dan writable.
-3. Jalankan aplikasi di localhost (disarankan Laragon/XAMPP).
-4. Login sebagai admin/user (lihat data awal di tabel `users`).
-5. Untuk backup otomatis, atur task scheduler sesuai script di atas.
+* Trigger dan transaksi mencegah data tidak valid masuk ke sistem.
+
+### 3. Ketahanan (Durabilitas)
+
+* Dengan backup otomatis, data tidak mudah hilang.
+
+### 4. Integritas
+
+* Data yang dimasukkan, diubah, atau dihitung semuanya melalui aturan yang dijaga di sisi database.
 
 ---
-
-## 👨‍💻 Tim & Kontribusi
-- Proyek UAP Pemrosesan Data Terdistribusi
-- Kelompok 17 Kelas CD
-
----
-
-## 📚 Referensi
-- [Dokumentasi MySQL: Stored Procedure & Function](https://dev.mysql.com/doc/refman/8.0/en/stored-programs-defining.html)
-- [PHP MySQLi Manual](https://www.php.net/manual/en/book.mysqli.php)
-- [Tailwind CSS](https://tailwindcss.com/)
-
----
-
-**GALAK** – (Game Asyik Login Akses Katalog) Game Katalog & Admin Log, contoh aplikasi modern dengan integrasi penuh fitur database terdistribusi.
