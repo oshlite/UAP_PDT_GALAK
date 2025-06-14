@@ -7,6 +7,7 @@ Proyek ini adalah sistem berbasis web yang dibangun menggunakan PHP Native dan M
 
 Sistem GALAK memanfaatkan fitur-fitur penting dalam database seperti **procedure**, **trigger**, **Transaction**, **function**, dan **backup terjadwal**, yang semuanya bekerja untuk menjaga keandalan dan konsistensi data.
 
+Seluruh Screenshoot Website GALAK dapat diakses pada link berikut https://github.com/oshlite/UAP_PDT_GALAK/tree/main/uploads
 ---
 
 ## 📌 Konsep Umum
