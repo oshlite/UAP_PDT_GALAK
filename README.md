@@ -1,8 +1,11 @@
 # 🎮🕹️👾 GALAK (Game Asyik Login Akses Katalog)
-
+![UAP PDT GALAK](uploads/c1.png)
+![UAP PDT GALAK](uploads/c2.png)
+![UAP PDT GALAK](uploads/c6.png)
+![UAP PDT GALAK](uploads/d7.png)
 Proyek ini adalah sistem berbasis web yang dibangun menggunakan PHP Native dan MySQL. Tujuan dari sistem ini adalah untuk menyediakan katalog game yang bisa diakses setelah gamers melakukan login. Sistem ini dilengkapi fitur seperti: manajemen data game, pencatatan log otomatis, validasi data sebelum masuk ke database, dan cadangan (backup) data secara otomatis.
 
-Sistem GALAK memanfaatkan fitur-fitur penting dalam database seperti **procedure**, **trigger**, **transaksi**, **function**, dan **backup terjadwal**, yang semuanya bekerja untuk menjaga keandalan dan konsistensi data.
+Sistem GALAK memanfaatkan fitur-fitur penting dalam database seperti **procedure**, **trigger**, **Transaction**, **function**, dan **backup terjadwal**, yang semuanya bekerja untuk menjaga keandalan dan konsistensi data.
 
 ---
 
@@ -23,7 +26,7 @@ Controller: Penghubung antara view dan model.
 ---
 
 ## 📄 Stored Procedure
-
+![UAP PDT GALAK](uploads/a1.png)
 **Stored Procedure** adalah semacam perintah yang disimpan langsung di dalam database dan digunakan berulang-ulang untuk tugas tertentu. Di sistem GALAK, prosedur ini digunakan agar semua proses berjalan dengan urutan dan aturan yang jelas. Beberapa contoh prosedur yang digunakan:
 
 ### 🎮 `AddNewGame`
@@ -65,7 +68,7 @@ $stmt->execute();
 ---
 
 ## 🧠 Function
-
+![UAP PDT GALAK](uploads/a2.png)
 **Function** digunakan untuk mengambil informasi dari database, tanpa mengubah apapun. Di GALAK, fungsi ini digunakan untuk menghitung jumlah game dalam kategori tertentu.
 
 ### 🕹️ `GetGameCountByKategoriId`
@@ -142,7 +145,7 @@ Manfaat:
 ---
 
 ## 🚨 Trigger
-
+![UAP PDT GALAK](uploads/a4.png)
 Trigger adalah aturan yang langsung dijalankan oleh database **secara otomatis** saat ada data baru dimasukkan atau diubah. Di GALAK, trigger dipakai untuk mencatat log setiap kali ada game ditambahkan atau diperbarui.
 
 ### 👾 `after_game_delete`
@@ -198,28 +201,63 @@ $stmt->execute();
 
 ---
 
-## 🔁 Transaction (Transaksi Aman)
+## 🔁 Transaction
+![UAP PDT GALAK](uploads/a3.png)
+Transaction di sini berarti **sekumpulan perintah yang dijalankan bersama-sama**, dan semuanya harus berhasil agar perubahan data disimpan. Kalau ada satu saja yang gagal, maka seluruh proses dibatalkan.
 
-Transaksi di sini berarti **sekumpulan perintah yang dijalankan bersama-sama**, dan semuanya harus berhasil agar perubahan data disimpan. Kalau ada satu saja yang gagal, maka seluruh proses dibatalkan.
-
-### Contoh: Tambah Game
-Contoh penggunaan transaksi saat menambahkan game:
+### Tambah Game & Kategori (admin_game_form.php)
+Transaction digunakan saat menambah game, terutama jika kategori baru juga harus di-insert. Semua proses (insert kategori, insert game) dijalankan dalam satu perubahan.
 
 ```php
+$conn->begin_transaction();
 try {
-    $pdo->beginTransaction();
-    $stmt = $pdo->prepare("CALL AddNewGame(?, ?, ?, ?)");
-    $stmt->execute([$judul, $genre, $thumbnail, $deskripsi]);
-    $pdo->commit();
+    $kategori_stmt = $conn->prepare("SELECT id FROM kategori WHERE name = ? LIMIT 1");
+    $kategori_stmt->bind_param('s', $genre);
+    $kategori_stmt->execute();
+    $kategori_result = $kategori_stmt->get_result();
+    if ($kategori_result->num_rows === 0) {
+        $desc_default = 'Kategori otomatis dari form game';
+        $insert_kat = $conn->prepare("INSERT INTO kategori (name, description) VALUES (?, ?)");
+        $insert_kat->bind_param('ss', $genre, $desc_default);
+        $insert_kat->execute();
+    }
+    $sql = "CALL AddNewGame(?, ?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('ssss', $title, $genre, $thumbnail_to_save, $description);
+    $stmt->execute();
+    $conn->commit();
 } catch (Exception $e) {
-    $pdo->rollBack();
-    echo "Gagal menambahkan game: " . $e->getMessage();
+    $conn->rollback();
+    $error_message = "Transaction gagal: " . $e->getMessage();
 }
 ```
 
-### Transaksi memastikan bahwa seluruh proses berhasil sebelum data disimpan.
+### Tambah/Edit Kategori (admin_kategori_form.php)
+Transaction juga bisa digunakan saat menambah atau mengedit kategori agar perubahan benar-benar aman.
 
-Manfaat transaksi:
+```php
+$conn->begin_transaction();
+try {
+    if ($posted_id > 0) {
+        $sql = "UPDATE kategori SET name = ?, description = ? WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('ssi', $name, $description, $posted_id);
+    } else {
+        $sql = "INSERT INTO kategori (name, description) VALUES (?, ?)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('ss', $name, $description);
+    }
+    $stmt->execute();
+    $conn->commit();
+} catch (Exception $e) {
+    $conn->rollback();
+    $error_message = "Gagal mengedit game: " . $e->getMessage();
+}
+```
+
+### Transaction memastikan bahwa seluruh proses berhasil sebelum data disimpan.
+
+Manfaat Transaction:
 
 * **Data tetap utuh** dan tidak setengah jadi.
 * **Tidak ada data aneh** misalnya game sudah masuk tapi log-nya tidak ada.
@@ -239,7 +277,7 @@ Sistem GALAK memiliki mekanisme backup otomatis menggunakan **`mysqldump`** yang
     @echo off
     set DATE=%date:~10,4%-%date:~4,2%-%date:~7,2%_%time:~0,2%%time:~3,2%%time:~6,2%
     mysqldump -u root database_galak > D:\AppData\Laragon\www\GALAK\storage\backups\backup_galak_%DATE%.sql
-    ```
+```
 
 Backup ini **dijalankan otomatis melalui penjadwalan di Task Scheduler** Windows, agar setiap hari data tersimpan aman meskipun terjadi masalah seperti listrik mati atau sistem rusak.
 
@@ -255,7 +293,7 @@ Sistem GALAK menunjukkan penerapan prinsip-prinsip **pemrosesan data terdistribu
 
 ### 2. Keandalan (Reliabilitas)
 
-* Trigger dan transaksi mencegah data tidak valid masuk ke sistem.
+* Trigger dan Transaction mencegah data tidak valid masuk ke sistem.
 
 ### 3. Ketahanan (Durabilitas)
 
@@ -266,3 +304,9 @@ Sistem GALAK menunjukkan penerapan prinsip-prinsip **pemrosesan data terdistribu
 * Data yang dimasukkan, diubah, atau dihitung semuanya melalui aturan yang dijaga di sisi database.
 
 ---
+
+# Kelompok 17 Kelas CD
+## 2317051005	Carissa Oktavia Sanjaya					
+## 2317051063	Sabrina Nurhasanah					
+## 2317051103	Melissa Novianti Nugroho
+## 2317051107	Oryza Surya Hapsari
